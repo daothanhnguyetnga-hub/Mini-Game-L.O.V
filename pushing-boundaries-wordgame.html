@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Word Peek – Mini Game</title>
+<style>
+:root{
+  --bg:#f4f1ea;
+  --card-bg:#ffffff;
+  --tile-bg:#ffffff;
+  --tile-border:#3a3a3a;
+  --wall-bg:#9a9a9a;
+  --text:#222222;
+  --muted:#666666;
+  --accent:#3a3a3a;
+  --shadow: rgba(0,0,0,0.08);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1c1c1e;
+    --card-bg:#2c2c2e;
+    --tile-bg:#3a3a3c;
+    --tile-border:#c7c7cc;
+    --wall-bg:#59595c;
+    --text:#f2f2f2;
+    --muted:#aeaeb2;
+    --accent:#f2f2f2;
+    --shadow: rgba(0,0,0,0.4);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1c1c1e;
+  --card-bg:#2c2c2e;
+  --tile-bg:#3a3a3c;
+  --tile-border:#c7c7cc;
+  --wall-bg:#59595c;
+  --text:#f2f2f2;
+  --muted:#aeaeb2;
+  --accent:#f2f2f2;
+  --shadow: rgba(0,0,0,0.4);
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  padding:24px 14px 48px;
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+.wrap{max-width:460px;width:100%;}
+h1{font-size:1.35rem;text-align:center;margin:0 0 6px;letter-spacing:0.5px;}
+.subtitle{text-align:center;color:var(--muted);font-size:0.82rem;margin-bottom:18px;line-height:1.6;}
+.card{
+  background:var(--card-bg);
+  border-radius:18px;
+  padding:16px;
+  box-shadow:0 4px 14px var(--shadow);
+  margin-bottom:16px;
+}
+.palette{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px;}
+.swatch{
+  display:flex;align-items:center;gap:6px;
+  padding:7px 12px;border-radius:999px;border:2px solid transparent;
+  cursor:pointer;font-size:0.72rem;font-weight:700;color:#fff;
+  user-select:none;
+  transition:transform .1s ease, border-color .1s ease;
+}
+.swatch.active{border-color:var(--accent); transform:scale(1.05);}
+.dot{width:9px;height:9px;border-radius:50%;background:#fff;opacity:0.95;}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:5px;
+  aspect-ratio:1/1;
+  width:100%;
+  max-width:360px;
+  margin:0 auto 18px;
+  touch-action:none;
+  user-select:none;
+}
+.tile{
+  display:flex;align-items:center;justify-content:center;
+  background:var(--tile-bg);
+  border:2px solid var(--tile-border);
+  border-radius:8px;
+  font-size:clamp(15px,4.8vw,22px);
+  font-weight:800;
+  color:var(--text);
+  cursor:pointer;
+  transition:transform .08s ease, background .1s ease;
+}
+.tile.wall{
+  background:var(--wall-bg);
+  border-color:var(--wall-bg);
+  cursor:default;
+}
+.tile:active{transform:scale(0.93);}
+.actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+button.action{
+  padding:10px 18px;border-radius:999px;border:none;
+  font-weight:700;font-size:0.8rem;cursor:pointer;
+  background:var(--tile-border);color:var(--card-bg);
+}
+button.action.secondary{background:transparent;border:2px solid var(--tile-border);color:var(--text);}
+.trackers{display:flex;flex-direction:column;gap:12px;}
+.tracker-row{display:flex;align-items:center;gap:10px;}
+.tracker-label{font-size:0.72rem;color:var(--muted);width:96px;flex-shrink:0;font-weight:600;}
+.boxes{display:flex;gap:4px;flex-wrap:wrap;}
+.box{width:15px;height:15px;border-radius:4px;border:2px solid var(--tile-border);background:transparent;}
+.note{font-size:0.75rem;color:var(--muted);text-align:center;margin-top:16px;line-height:1.7;}
+.note b{color:var(--text);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🚀 WORD PEEK</h1>
+  <div class="subtitle">
+    This letter grid hides <strong>5 keywords</strong> related to the event theme.<br>
+    Each word connects adjacent cells (up/down/left/right – no diagonals), and each cell belongs to exactly one word.<br><br>
+    <strong>How to play:</strong> Pick the color that matches the keyword you want to solve. Then, on the word board below, drag across the cells to highlight the word you find.
+  </div>
+
+  <div class="card">
+    <div class="palette" id="palette"></div>
+    <div class="grid" id="grid"></div>
+    <div class="actions">
+      <button class="action secondary" id="clearColor">Clear selected color</button>
+      <button class="action" id="clearAll">Clear all</button>
+    </div>
+  </div>
+
+  <div class="card trackers" id="trackers"></div>
+
+  <div class="note">
+    📸 Once you're done, take a <b>screenshot</b> and submit it via the <b>[MS Form submission link – to be added]</b> for a chance to receive an event ticket.<br>
+    You need at least <b>3 out of 5</b> correct words to qualify. Your submission order and number of correct words determine your priority for receiving a ticket to the event.
+  </div>
+</div>
+
+<script>
+const WORDS = [
+  {len:8, color:'#e63946', name:'Keyword 1'},
+  {len:7, color:'#2a9d8f', name:'Keyword 2'},
+  {len:7, color:'#f4a261', name:'Keyword 3'},
+  {len:6, color:'#6a4c93', name:'Keyword 4'},
+  {len:5, color:'#588157', name:'Keyword 5'}
+];
+
+// null = wall (blocked cell)
+const LAYOUT = [
+  ['B','O','U','N','D','A'],
+  ['T','R','I','V','Y','R'],
+  ['U','A','L','E','X','P'],
+  ['E','B','E','R','O','L'],
+  ['Y','O','N','D','T','H'],
+  [null,null,null,'K','N','I']
+];
+
+let activeColorIndex = 0;
+const cellColors = {}; // "r-c" -> colorIndex
+
+const paletteEl = document.getElementById('palette');
+WORDS.forEach((w,i)=>{
+  const btn = document.createElement('div');
+  btn.className = 'swatch' + (i===0?' active':'');
+  btn.style.background = w.color;
+  btn.dataset.index = i;
+  btn.innerHTML = '<span class="dot"></span>' + w.name + ' (' + w.len + ' letters)';
+  btn.addEventListener('click', ()=>{
+    activeColorIndex = i;
+    document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+    btn.classList.add('active');
+  });
+  paletteEl.appendChild(btn);
+});
+
+const gridEl = document.getElementById('grid');
+let painting = false;
+
+function resetTileStyle(el){
+  el.style.background = '';
+  el.style.color = '';
+  el.style.borderColor = '';
+}
+
+function paintCell(r,c,el){
+  if(LAYOUT[r][c]===null) return;
+  const key = r+'-'+c;
+  cellColors[key] = activeColorIndex;
+  el.style.background = WORDS[activeColorIndex].color;
+  el.style.color = '#fff';
+  el.style.borderColor = WORDS[activeColorIndex].color;
+  updateTrackers();
+}
+
+function toggleCell(r,c,el){
+  if(LAYOUT[r][c]===null) return;
+  const key = r+'-'+c;
+  if(cellColors[key]===activeColorIndex){
+    delete cellColors[key];
+    resetTileStyle(el);
+  } else {
+    paintCell(r,c,el);
+  }
+  updateTrackers();
+}
+
+for(let r=0;r<6;r++){
+  for(let c=0;c<6;c++){
+    const tile = document.createElement('div');
+    const letter = LAYOUT[r][c];
+    if(letter===null){
+      tile.className = 'tile wall';
+    } else {
+      tile.className = 'tile';
+      tile.textContent = letter;
+    }
+    tile.dataset.r = r;
+    tile.dataset.c = c;
+
+    tile.addEventListener('mousedown', (e)=>{
+      e.preventDefault();
+      painting = true;
+      toggleCell(r,c,tile);
+    });
+    tile.addEventListener('mouseenter', ()=>{
+      if(painting) paintCell(r,c,tile);
+    });
+    tile.addEventListener('touchstart', (e)=>{
+      e.preventDefault();
+      painting = true;
+      toggleCell(r,c,tile);
+    }, {passive:false});
+
+    gridEl.appendChild(tile);
+  }
+}
+
+document.addEventListener('mouseup', ()=>painting=false);
+document.addEventListener('touchend', ()=>painting=false);
+document.addEventListener('touchmove', (e)=>{
+  if(!painting) return;
+  const touch = e.touches[0];
+  const el = document.elementFromPoint(touch.clientX, touch.clientY);
+  if(el && el.classList.contains('tile') && !el.classList.contains('wall')){
+    const r = +el.dataset.r, c = +el.dataset.c;
+    paintCell(r,c,el);
+  }
+}, {passive:false});
+
+document.getElementById('clearColor').addEventListener('click', ()=>{
+  Object.keys(cellColors).forEach(key=>{
+    if(cellColors[key]===activeColorIndex){
+      delete cellColors[key];
+      const [r,c] = key.split('-').map(Number);
+      const el = gridEl.children[r*6+c];
+      resetTileStyle(el);
+    }
+  });
+  updateTrackers();
+});
+
+document.getElementById('clearAll').addEventListener('click', ()=>{
+  Object.keys(cellColors).forEach(key=>delete cellColors[key]);
+  document.querySelectorAll('.tile').forEach(resetTileStyle);
+  updateTrackers();
+});
+
+const trackersEl = document.getElementById('trackers');
+function updateTrackers(){
+  trackersEl.innerHTML = '';
+  WORDS.forEach((w,i)=>{
+    const count = Object.values(cellColors).filter(v=>v===i).length;
+    const row = document.createElement('div');
+    row.className = 'tracker-row';
+    const label = document.createElement('div');
+    label.className = 'tracker-label';
+    label.textContent = w.name;
+    const boxes = document.createElement('div');
+    boxes.className = 'boxes';
+    for(let k=0;k<w.len;k++){
+      const box = document.createElement('div');
+      box.className = 'box';
+      if(k<count) box.style.background = w.color;
+      boxes.appendChild(box);
+    }
+    row.appendChild(label);
+    row.appendChild(boxes);
+    trackersEl.appendChild(row);
+  });
+}
+updateTrackers();
+</script>
+</body>
+</html>
